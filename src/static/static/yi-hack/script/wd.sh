@@ -184,28 +184,40 @@ check_mqtt()
     fi
 }
 
-check_wifi()
-{
-    if ! wpa_cli -i wlan0 status 2>&1 | grep -q "wpa_state=COMPLETED"; then
-        if [ -e "$LOGFILE" ]; then
-            $YI_HACK_PREFIX/usr/bin/tail -n 145 "$LOGFILE" > "$LOGFILE.tmp" && mv "$LOGFILE.tmp" "$LOGFILE"
-        fi
-        echo -e "$(date): Wifi connection lost:\n$(wpa_cli -i wlan0 status 2>&1)" >> "$LOGFILE"
-        failsafecounter=$((failsafecounter + 1))
-        if [ "$failsafecounter" -ge 6 ]; then
-            echo -e "$(date): Wifi connection still could't be restored. Restarting." >> "$LOGFILE"
-            reboot
-        else
-            echo -e "$(date): Attempting reconnect." >> "$LOGFILE"
-            sleep 2
-            ifconfig wlan0 down
-            sleep 1
-            ifconfig wlan0 up
-            sleep 1
-            wpa_cli -i wlan0 reconfigure
-        fi
-    fi
-}
+# check_wifi() - DISABLED
+# This function was added in commit 60b2d98 but causes issues:
+# 1. wpa_cli command hangs/blocks on some cameras
+# 2. Variable bugs: used undefined $LOGFILE instead of $LOGWIFI_FILE  
+# 3. failsafecounter was never initialized or reset
+# 4. Caused continuous reboots every ~2.5 minutes on affected cameras
+# The WiFi watchdog is not necessary - cameras work fine without it.
+#
+#check_wifi()
+#{
+#    # Use full path to wpa_cli since /home/base/tools is not in PATH
+#    if ! timeout 3 /home/base/tools/wpa_cli -i wlan0 status 2>&1 | grep -q "wpa_state=COMPLETED"; then
+#        if [ -e "$LOGWIFI_FILE" ]; then
+#            $YI_HACK_PREFIX/usr/bin/tail -n 145 "$LOGWIFI_FILE" > "$LOGWIFI_FILE.tmp" && mv "$LOGWIFI_FILE.tmp" "$LOGWIFI_FILE"
+#        fi
+#        echo -e "$(date): Wifi connection lost:\n$(timeout 3 /home/base/tools/wpa_cli -i wlan0 status 2>&1)" >> "$LOGWIFI_FILE"
+#        failsafecounter=$((failsafecounter + 1))
+#        if [ "$failsafecounter" -ge 6 ]; then
+#            echo -e "$(date): Wifi connection still could't be restored. Restarting." >> "$LOGWIFI_FILE"
+#            reboot
+#        else
+#            echo -e "$(date): Attempting reconnect." >> "$LOGWIFI_FILE"
+#            sleep 2
+#            ifconfig wlan0 down
+#            sleep 1
+#            ifconfig wlan0 up
+#            sleep 1
+#            timeout 3 /home/base/tools/wpa_cli -i wlan0 reconfigure
+#        fi
+#    else
+#        # Reset counter when WiFi is working
+#        failsafecounter=0
+#    fi
+#}
 
 if [[ $(get_config RTSP) == "no" ]] ; then
     exit
@@ -235,7 +247,7 @@ do
     fi
     check_rmm
     check_mqtt
-    check_wifi
+    # check_wifi  # DISABLED - see comment above, wpa_cli hangs on some cameras
 
     echo 1500 > /sys/class/net/eth0/mtu
     echo 1500 > /sys/class/net/wlan0/mtu
