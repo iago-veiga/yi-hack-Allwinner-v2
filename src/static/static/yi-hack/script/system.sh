@@ -192,6 +192,23 @@ fi
 mount --bind $YI_HACK_PREFIX/bin/cloudAPI $YI_PREFIX/cloudAPI
 
 log "Starting yi processes" 1
+
+# Fix OSD date format for US-region cameras ("mius" region code -> "mieu")
+# US firmware uses MM/DD/YYYY; patching mmap.info switches to DD/MM/YYYY
+US_REGION=0
+if grep -q 'mius' /tmp/mmap.info 2>/dev/null; then
+    US_REGION=1
+    touch /tmp/us_region
+    log "US-region camera detected, fixing OSD date format"
+    _mius_line=$(hexdump -C /tmp/mmap.info | grep "6d 69 75 73" | head -1)
+    if [ -n "$_mius_line" ]; then
+        _hex_addr=$(echo "$_mius_line" | awk '{print $1}')
+        _col=$(echo "$_mius_line" | awk '{for(i=2;i<=17;i++) if($i=="6d" && $(i+1)=="69" && $(i+2)=="75" && $(i+3)=="73") {print i-2; exit}}')
+        _offset=$(( $(printf "%d" "0x$_hex_addr") + _col ))
+        printf "mieu" | dd of=/tmp/mmap.info bs=1 seek=$_offset conv=notrunc 2>/dev/null
+    fi
+fi
+
 if [[ $(get_config DISABLE_CLOUD) == "no" ]] ; then
     (
         if [ $(get_config RTSP_AUDIO) == "pcm" ] || [ $(get_config RTSP_AUDIO) == "alaw" ] || [ $(get_config RTSP_AUDIO) == "ulaw" ]; then

@@ -25,3 +25,9 @@ $YI_HACK_PREFIX/bin/set_tz_offset -c osd -o on
 TZP=$(TZ=$TZ_TMP date +%z)
 TZP_SET=$(echo ${TZP:0:1} ${TZP:1:2} ${TZP:3:2} | awk '{ print ($1$2*3600+$3*60) }')
 $YI_HACK_PREFIX/bin/set_tz_offset -c tz_offset_osd -m $MODEL_SUFFIX -f $HV -v $TZP_SET
+
+# Fallback for US-region cameras where tz_offset_osd fails silently
+# (/tmp/us_region is created by system.sh at boot when "mius" region is detected)
+if [ -f /tmp/us_region ]; then
+    $YI_HACK_PREFIX/bin/set_tz_offset -c tz_offset -v $TZP_SET
+fi
